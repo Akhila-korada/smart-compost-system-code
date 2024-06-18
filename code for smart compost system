@@ -1,0 +1,257 @@
+#include "DHT.h"
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+
+// Fans control
+const int input1 = 2;
+const int input2 = 3;
+const int enable1 = 5;
+
+// Lid control
+const int input3 = 6;
+const int input4 = 7;
+const int enable2 = 8;
+
+const int irSensor = 9; 
+
+const int trigPin = 10;
+const int echoPin = 11;
+const int relay = 12;
+
+const int buzzer = 13;
+
+const float SPEED_OF_SOUND = 0.0343;
+LiquidCrystal_I2C lcd(0x3F, 16, 2);
+DHT dht(4, DHT11);
+
+
+// for lid open and close
+void lidOn(){
+  analogWrite(enable2, 90);
+  digitalWrite(input3, HIGH);
+  digitalWrite(input4, LOW);
+  delay(1100);
+  digitalWrite(input3, LOW);
+  digitalWrite(input4, LOW);
+  delay(5000);
+  analogWrite(enable2, 60);
+  digitalWrite(input4, HIGH);
+  digitalWrite(input3, LOW);
+  delay(1000);
+  digitalWrite(input3, LOW);
+  digitalWrite(input4, LOW);
+}
+
+// lid off
+void lidOff(){
+  analogWrite(enable2, 0);
+  digitalWrite(input3, LOW);
+  digitalWrite(input4, LOW);
+}
+
+// fans control moist
+void moistNotOptimal(){
+  analogWrite(enable1, 255);
+  digitalWrite(input1, HIGH);
+  digitalWrite(input2, LOW);
+}
+
+void tempNotOptimal(){
+  analogWrite(enable1, 200);
+  digitalWrite(input1, HIGH);
+  digitalWrite(input2, LOW);
+}
+
+void moistIsOptimal(){
+  analogWrite(enable1, 0);
+  digitalWrite(input1, LOW);
+  digitalWrite(input2, LOW);
+}
+
+// fans control for air optimal 
+void airNotOptimal(){
+  analogWrite(enable1, 120);
+  digitalWrite(input1, HIGH);
+  digitalWrite(input2, LOW);
+}
+
+void airIsOptimal(){
+  analogWrite(enable1, 0);
+  digitalWrite(input1, LOW);
+  digitalWrite(input2, LOW);
+}
+
+// buzzer
+void buzzOn(){
+  digitalWrite(buzzer, HIGH);
+}
+
+void buzzOff(){
+  digitalWrite(buzzer, LOW);
+}
+
+//relay
+void relayOn(){
+  digitalWrite(relay, HIGH);
+  delay(4000);
+  digitalWrite(relay, LOW);
+}
+
+void setup() {
+  Serial.begin(9600);
+  digitalWrite(relay, LOW);
+  pinMode(irSensor, INPUT);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  pinMode(buzzer, OUTPUT);
+  pinMode(A0, INPUT);
+  pinMode(A1, INPUT);
+
+  pinMode(input1, OUTPUT);
+  pinMode(input2, OUTPUT);
+  pinMode(enable1, OUTPUT);
+  pinMode(input3, OUTPUT);
+  pinMode(input4, OUTPUT);
+  pinMode(enable2, OUTPUT);
+  pinMode(relay,OUTPUT);
+
+  digitalWrite(relay,LOW);
+
+  dht.begin();
+  lcd.begin();
+  lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(" LBRCE ");
+  Serial.println(" LBRCE ");
+  delay(1500);
+  lcd.setCursor(0, 1);
+  lcd.print(" MYLAVARAM");
+  Serial.println(" MYLAVARAM");
+  delay(2500);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(" SMART COMPOST ");
+  Serial.println(" SMART COMPOST ");
+  delay(1500);
+  lcd.setCursor(0, 1);
+  lcd.print(" SYSTEM...");
+  Serial.println(" SYSTEM...");
+  delay(2500);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(" INITIALIZING.... ");
+  Serial.println(" INITIALIZING.... ");
+  delay(1000);
+  lcd.setCursor(0, 1);
+  lcd.print(" SENSORS ");
+  Serial.println(" SENSORS ");
+  delay(1000);
+  lcd.clear();
+}
+
+void loop() {
+  // Measure distance
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  long duration = pulseIn(echoPin, HIGH);
+  float distance = duration * SPEED_OF_SOUND / 2;
+
+  // Read sensors
+  float temp = dht.readTemperature();
+  int air = analogRead(A0);
+  int moist = analogRead(A1);
+  int level = digitalRead(irSensor);
+
+  if(distance <= 15){
+    lidOn();
+    delay(1500);
+    relayOn();
+  } else {
+    lidOff();
+  }
+
+  // Check if reading from DHT is valid
+  if (isnan(temp)) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("TEMP SENSOR");
+    Serial.println("TEMP SENSOR");
+    lcd.setCursor(0, 1);
+    lcd.print("ERROR...");
+    Serial.println("ERROR...");
+    delay(1000);
+    return;
+  }
+
+  // Temperature check
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("TEMPERATURE");
+  Serial.println("TEMPERATURE");
+  lcd.setCursor(0, 1);
+  if (temp > 25.0 && temp < 30.0) {
+    lcd.print("IS OPTIMAL....");
+    Serial.println(temp);
+  } else {
+    lcd.print("NOT OPTIMAL....");
+    Serial.println(temp);
+    tempNotOptimal();
+  }
+  delay(1000);
+
+  // Moisture check
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("MOISTURE");
+  Serial.println("MOISTURE");
+  lcd.setCursor(0, 1);
+  if (moist > 1 && moist < 200) {
+    lcd.print("NOT OPTIMAL....");
+    Serial.println(moist);
+    moistNotOptimal();
+  } else {
+    lcd.print("IS OPTIMAL....");
+    Serial.println(moist);
+    moistIsOptimal();
+  }
+  delay(1000);
+
+  // Air quality check
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("AIR QUALITY");
+  Serial.println("AIR QUALITY");
+  lcd.setCursor(0, 1);
+  if (air > 1 && air <= 10) {
+    lcd.print("IS OPTIMAL....");
+    Serial.println(air);
+    airIsOptimal();
+  } else {
+    lcd.print("NOT OPTIMAL....");
+    Serial.println(air);
+    airNotOptimal();
+  }
+  delay(1000);
+
+  //level check
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("BIN LEVEL");
+  Serial.println("BIN LEVEL");
+  lcd.setCursor(0, 1);
+  if (level == 0) {
+    lcd.print("IS FULL....");
+    Serial.println(level);
+    buzzOn();
+  } else {
+    lcd.print("NOT FULL....");
+    Serial.println(level);
+    buzzOff();
+  }
+  delay(1000);
+}
